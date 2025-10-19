@@ -188,9 +188,9 @@ import joblib
 
 def finalize_preprocessing(
     df: pd.DataFrame,
-    imputer_path: str,
-    scaler_path: str,
-    columns_path: str
+    imputer_path : str = '../artifacts/imputer_knn.pkl',
+    scaler_path: str =  '../artifacts/scaler_knn.pkl',
+    columns_path: str = '../artifacts/X_columns.pkl'
 ) -> pd.DataFrame:
     """
     Finalizes preprocessing on a new dataset (test or validation) using
