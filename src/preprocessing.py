@@ -10,7 +10,7 @@ import re
 import pandas as pd
 from sklearn.preprocessing import StandardScaler
 from sklearn.cluster import DBSCAN
-
+import joblib
 
 def preprocess_clinical(clinical_df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -149,4 +149,92 @@ def preprocess_test_data(clinical_test_df, molecular_test_df, encoder, dbscan):
 
 
 
+
+def align_and_transform(df: pd.DataFrame, X_columns: list, imputer, scaler) -> pd.DataFrame:
+    """
+    Align test dataframe to training columns, impute missing values, and scale features.
+    
+    Parameters:
+        df: Test dataframe
+        X_columns: List of columns from training set
+        imputer: Fitted KNNImputer
+        scaler: Fitted StandardScaler
+    
+    Returns:
+        Preprocessed dataframe ready for model input
+    """
+    # Drop extra columns
+    df = df.drop(columns=[c for c in df.columns if c not in X_columns], errors='ignore')
+    
+    # Add missing columns
+    for col in X_columns:
+        if col not in df.columns:
+            df[col] = 0
+    
+    # Reorder columns to match training
+    df = df[X_columns]
+    
+    # Impute
+    df_imputed = imputer.transform(df)
+    
+    # Scale
+    df_scaled = scaler.transform(df_imputed)
+    
+    return pd.DataFrame(df_scaled, columns=X_columns)
+
+# utils.py
+import pandas as pd
+import joblib
+
+def finalize_preprocessing(
+    df: pd.DataFrame,
+    imputer_path: str,
+    scaler_path: str,
+    columns_path: str
+) -> pd.DataFrame:
+    """
+    Finalizes preprocessing on a new dataset (test or validation) using
+    previously saved imputer, scaler, and training columns.
+    
+    Parameters
+    ----------
+    df : pd.DataFrame
+        Test dataset to preprocess.
+    imputer_path : str
+        Path to the saved fitted KNNImputer (joblib file).
+    scaler_path : str
+        Path to the saved fitted StandardScaler.
+    columns_path : str
+        Path to the saved training columns list.
+    
+    Returns
+    -------
+    pd.DataFrame
+        Preprocessed dataframe ready for model input.
+    """
+    
+    # Load saved objects
+    imputer = joblib.load(imputer_path)
+    scaler = joblib.load(scaler_path)
+    train_columns = joblib.load(columns_path)
+    
+    # Drop extra columns not in training
+    df = df.drop(columns=[c for c in df.columns if c not in train_columns], errors='ignore')
+    
+    # Add missing columns as 0
+    for col in train_columns:
+        if col not in df.columns:
+            df[col] = 0
+    
+    # Reorder columns to match training set
+    df = df[train_columns]
+    
+    # Apply saved imputer
+    df_imputed = imputer.transform(df)
+    
+    # Apply saved scaler
+    df_scaled = scaler.transform(df_imputed)
+    
+    # Return as dataframe with proper column names
+    return pd.DataFrame(df_scaled, columns=train_columns)
 
