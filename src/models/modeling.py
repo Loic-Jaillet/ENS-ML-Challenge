@@ -150,54 +150,67 @@ def grid_search_rsf(X, y, param_grid, n_splits=5, tau=7):
 
 
 # Optuna objective function for RSF hyperparameter optimization
+def hyperparameter_optimization_rsf(X, y) -> tuple:
+    """
+    Optimize RandomSurvivalForest hyperparameters using Optuna.
 
-def objective(trial):
-    # Define the hyperparameters to tune
-    n_estimators = trial.suggest_int('n_estimators', 50, 300)
-    min_samples_split = trial.suggest_int('min_samples_split', 2, 40)
-    min_samples_leaf = trial.suggest_int('min_samples_leaf', 1, 40)
-    max_features = trial.suggest_float('max_features', 0.1, 1.0)
-    max_depth = trial.suggest_int('max_depth', 3, 30)
+    Parameters:
+    - X: DataFrame or array-like, feature matrix.
+    - y: Structured array, survival data in sksurv format.
 
-    # Initialize the model with the suggested hyperparameters
-    rsf = RandomSurvivalForest(
-        n_estimators=n_estimators,
-        min_samples_split=min_samples_split,
-        min_samples_leaf=min_samples_leaf,
-        max_features=max_features,
-        max_depth=max_depth,
-        random_state=42,
-        n_jobs=-1
-    )
+    Returns:
+    - best_params: Dictionary, best hyperparameters found.
+    - best_value: Float, best IPCW concordance index score.
+    """
+    def objective(trial):
+        # Define the hyperparameters to tune
+        n_estimators = trial.suggest_int('n_estimators', 50, 300)
+        min_samples_split = trial.suggest_int('min_samples_split', 2, 40)
+        min_samples_leaf = trial.suggest_int('min_samples_leaf', 1, 40)
+        max_features = trial.suggest_float('max_features', 0.1, 1.0)
+        max_depth = trial.suggest_int('max_depth', 3, 30)
 
-    fold = KFold(n_splits=5, shuffle=True, random_state=42)
-    cv_scores = []
-    for train_index, test_index in fold.split(X, y):
-        X_train, X_test = X.iloc[train_index], X.iloc[test_index]
-        y_train, y_test = y[train_index], y[test_index]
+        # Initialize the model with the suggested hyperparameters
+        rsf = RandomSurvivalForest(
+            n_estimators=n_estimators,
+            min_samples_split=min_samples_split,
+            min_samples_leaf=min_samples_leaf,
+            max_features=max_features,
+            max_depth=max_depth,
+            random_state=42,
+            n_jobs=-1
+        )
 
-        scaler = MinMaxScaler()
-        X_train = scaler.fit_transform(X_train)
-        X_test = scaler.transform(X_test)
+        fold = KFold(n_splits=5, shuffle=True, random_state=42)
+        cv_scores = []
+        for train_index, test_index in fold.split(X, y):
+            X_train, X_test = X.iloc[train_index], X.iloc[test_index]
+            y_train, y_test = y[train_index], y[test_index]
 
-        rsf.fit(X_train, y_train)
+            scaler = MinMaxScaler()
+            X_train = scaler.fit_transform(X_train)
+            X_test = scaler.transform(X_test)
 
-        score = concordance_index_ipcw(y_train, y_test, rsf.predict(X_test), tau=7)[0]
-        cv_scores.append(score)
+            rsf.fit(X_train, y_train)
+
+            score = concordance_index_ipcw(y_train, y_test, rsf.predict(X_test), tau=7)[0]
+            cv_scores.append(score)
+        
+        # Evaluate the model
+        test_score = np.mean(cv_scores)
+        print(f"Test score: {test_score} and params: {trial.params}")
+        return test_score
     
-    # Evaluate the model
-    test_score = np.mean(cv_scores)
-    print(f"Test score: {test_score} and params: {trial.params}")
-    return test_score
-"""
-# Create a study and optimize the objective function
-study = optuna.create_study(direction='maximize')
-study.optimize(objective, n_trials=50)
+    # Create a study and optimize the objective function
+    study = optuna.create_study(direction='maximize')
+    study.optimize(objective, n_trials=50)
 
-# Print the best hyperparameters
-print('Best hyperparameters: ', study.best_params)
-print('Best score: ', study.best_value)
-"""
+    # Print the best hyperparameters
+    print('Best hyperparameters: ', study.best_params)
+    print('Best score: ', study.best_value)
+    
+    return study.best_params, study.best_value
+    
 
 
 # Gradient Boosting Survival Analysis
