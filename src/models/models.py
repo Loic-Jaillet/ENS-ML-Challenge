@@ -3,7 +3,6 @@ import os
 from sksurv.ensemble import RandomSurvivalForest
 from sksurv.ensemble import GradientBoostingSurvivalAnalysis
 from .hyperparameters import RSF_PARAMS, GBS_PARAMS
-BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 
 def build_model(model_name):
     """
