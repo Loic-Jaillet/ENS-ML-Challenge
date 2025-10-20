@@ -68,7 +68,7 @@ def enrich_with_molecular_features(clinical_df: pd.DataFrame, molecular_df: pd.D
     mol_sum_X = molecular_df.groupby('ID')['X_mutation'].sum().reset_index().rename(columns={'X_mutation': 'sum_X'})
     df = df.merge(mol_sum_X, on='ID', how='left').fillna({'sum_X': 0})
 
-    # --- Clustering genomic coordinates ---
+    # Clustering genomic coordinates
     coords = molecular_df[['CHR', 'START', 'END']].copy()
     coords['CHR'] = coords['CHR'].dropna().apply(lambda x: 23.0 if x == 'X' else float(x))
     coords['START'] = coords['START'].fillna(coords['START'].mean())
@@ -80,7 +80,7 @@ def enrich_with_molecular_features(clinical_df: pd.DataFrame, molecular_df: pd.D
     clusters = dbscan.fit_predict(coords_scaled)
     molecular_df['Cluster'] = clusters
 
-    # --- Protein change parsing ---
+    # Protein change parsing
     molecular_df['PROTEIN_CHANGE'] = molecular_df['PROTEIN_CHANGE'].fillna('NA')
     protein_features = molecular_df['PROTEIN_CHANGE'].apply(parse_protein_change).apply(pd.Series)
 
@@ -93,7 +93,7 @@ def enrich_with_molecular_features(clinical_df: pd.DataFrame, molecular_df: pd.D
     molecular_df = pd.concat([molecular_df, protein_features], axis=1)
     molecular_df = molecular_df.replace('NA', None)
 
-    # --- Encoding categorical features ---
+    # Encoding categorical features
     categorical_cols = ['CHR', 'GENE', 'EFFECT', 'REF', 'ALT', 'Cluster', 'original_aa', 'mutant_aa']
     encoded_features = encoder.transform(molecular_df[categorical_cols])
     encoded_df = pd.DataFrame(encoded_features, columns=encoder.get_feature_names_out(categorical_cols))
@@ -102,7 +102,7 @@ def enrich_with_molecular_features(clinical_df: pd.DataFrame, molecular_df: pd.D
     encoded_df = pd.concat([encoded_df, protein_features.drop(columns=['original_aa', 'mutant_aa'])], axis=1)
     encoded_group = encoded_df.groupby('ID').sum().reset_index()
 
-    # --- Merge encoded features with clinical ---
+    # Merge encoded features with clinical
     df = df.merge(encoded_group, on='ID', how='left')
 
     # Impute missing values for numeric columns with <12% missingness
