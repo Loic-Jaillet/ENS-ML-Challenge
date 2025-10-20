@@ -8,9 +8,10 @@ and molecular datasets in the Myeloid Leukemia Survival Prediction project.
 
 import re
 import pandas as pd
-from sklearn.preprocessing import StandardScaler
+from sklearn.preprocessing import StandardScaler, OneHotEncoder
 from sklearn.cluster import DBSCAN
 import joblib
+import os
 
 def preprocess_clinical(clinical_df: pd.DataFrame) -> pd.DataFrame:
     """
@@ -68,7 +69,7 @@ def enrich_with_molecular_features(clinical_df: pd.DataFrame, molecular_df: pd.D
     mol_sum_X = molecular_df.groupby('ID')['X_mutation'].sum().reset_index().rename(columns={'X_mutation': 'sum_X'})
     df = df.merge(mol_sum_X, on='ID', how='left').fillna({'sum_X': 0})
 
-    # --- Clustering genomic coordinates ---
+    # Clustering genomic coordinates
     coords = molecular_df[['CHR', 'START', 'END']].copy()
     coords['CHR'] = coords['CHR'].dropna().apply(lambda x: 23.0 if x == 'X' else float(x))
     coords['START'] = coords['START'].fillna(coords['START'].mean())
@@ -80,7 +81,7 @@ def enrich_with_molecular_features(clinical_df: pd.DataFrame, molecular_df: pd.D
     clusters = dbscan.fit_predict(coords_scaled)
     molecular_df['Cluster'] = clusters
 
-    # --- Protein change parsing ---
+    # Protein change parsing
     molecular_df['PROTEIN_CHANGE'] = molecular_df['PROTEIN_CHANGE'].fillna('NA')
     protein_features = molecular_df['PROTEIN_CHANGE'].apply(parse_protein_change).apply(pd.Series)
 
@@ -93,7 +94,7 @@ def enrich_with_molecular_features(clinical_df: pd.DataFrame, molecular_df: pd.D
     molecular_df = pd.concat([molecular_df, protein_features], axis=1)
     molecular_df = molecular_df.replace('NA', None)
 
-    # --- Encoding categorical features ---
+    # Encoding categorical features
     categorical_cols = ['CHR', 'GENE', 'EFFECT', 'REF', 'ALT', 'Cluster', 'original_aa', 'mutant_aa']
     encoded_features = encoder.transform(molecular_df[categorical_cols])
     encoded_df = pd.DataFrame(encoded_features, columns=encoder.get_feature_names_out(categorical_cols))
@@ -102,7 +103,7 @@ def enrich_with_molecular_features(clinical_df: pd.DataFrame, molecular_df: pd.D
     encoded_df = pd.concat([encoded_df, protein_features.drop(columns=['original_aa', 'mutant_aa'])], axis=1)
     encoded_group = encoded_df.groupby('ID').sum().reset_index()
 
-    # --- Merge encoded features with clinical ---
+    # Merge encoded features with clinical
     df = df.merge(encoded_group, on='ID', how='left')
 
     # Impute missing values for numeric columns with <12% missingness
@@ -149,48 +150,14 @@ def preprocess_test_data(clinical_test_df, molecular_test_df, encoder, dbscan):
 
 
 
-
-def align_and_transform(df: pd.DataFrame, X_columns: list, imputer, scaler) -> pd.DataFrame:
-    """
-    Align test dataframe to training columns, impute missing values, and scale features.
-    
-    Parameters:
-        df: Test dataframe
-        X_columns: List of columns from training set
-        imputer: Fitted KNNImputer
-        scaler: Fitted StandardScaler
-    
-    Returns:
-        Preprocessed dataframe ready for model input
-    """
-    # Drop extra columns
-    df = df.drop(columns=[c for c in df.columns if c not in X_columns], errors='ignore')
-    
-    # Add missing columns
-    for col in X_columns:
-        if col not in df.columns:
-            df[col] = 0
-    
-    # Reorder columns to match training
-    df = df[X_columns]
-    
-    # Impute
-    df_imputed = imputer.transform(df)
-    
-    # Scale
-    df_scaled = scaler.transform(df_imputed)
-    
-    return pd.DataFrame(df_scaled, columns=X_columns)
-
-# utils.py
-import pandas as pd
-import joblib
-
 def finalize_preprocessing(
-    df: pd.DataFrame,
+    clinical_df: pd.DataFrame,
+    molecular_df: pd.DataFrame,
     imputer_path : str = '../artifacts/imputer_knn.pkl',
-    scaler_path: str =  '../artifacts/scaler_knn.pkl',
-    columns_path: str = '../artifacts/X_columns.pkl'
+    scaler_path: str =  '../artifacts/scaler_rsf.pkl',
+    columns_path: str = '../artifacts/X_columns.pkl',
+    encoder_path: str = '../artifacts/onehot_encoder.pkl',
+    dbscan_path: str = '../artifacts/dbscan_model.pkl'
 ) -> pd.DataFrame:
     """
     Finalizes preprocessing on a new dataset (test or validation) using
@@ -198,8 +165,10 @@ def finalize_preprocessing(
     
     Parameters
     ----------
-    df : pd.DataFrame
-        Test dataset to preprocess.
+    clinical_test_df : pd.DataFrame
+        Clinical test dataframe.
+    molecular_test_df : pd.DataFrame
+        Molecular test dataframe.
     imputer_path : str
         Path to the saved fitted KNNImputer (joblib file).
     scaler_path : str
@@ -212,11 +181,15 @@ def finalize_preprocessing(
     pd.DataFrame
         Preprocessed dataframe ready for model input.
     """
-    
+
     # Load saved objects
     imputer = joblib.load(imputer_path)
     scaler = joblib.load(scaler_path)
     train_columns = joblib.load(columns_path)
+    encoder = joblib.load(encoder_path)
+    dbscan = joblib.load(dbscan_path)
+    
+    df = preprocess_test_data(clinical_df, molecular_df, encoder, dbscan)
     
     # Drop extra columns not in training
     df = df.drop(columns=[c for c in df.columns if c not in train_columns], errors='ignore')

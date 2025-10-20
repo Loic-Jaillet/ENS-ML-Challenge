@@ -1,0 +1,4 @@
+# Ignore model artifacts
+artifacts/
+rsf_model.pkl
+gbs_model.pkl
