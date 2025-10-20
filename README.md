@@ -11,13 +11,12 @@ More details about the challenge can be found here: [QRT ENS 2025 Competition](h
 
 ## Folder Structure
 
-- `notebooks/` : Jupyter notebooks for exploration, experimentation, and visualization.  
+- `notebooks/` : Jupyter notebooks testing the code.  
 - `src/` : Source code
-    - `data/` : Preprocessing and feature engineering scripts
     - `models/` : Model building, training, and evaluation scripts
-    - `utils/` : Helper functions (paths, metrics, feature evaluation)
-- `artifacts/` : Saved trained models, scalers, and encoders (**ignored by Git due to size**)  
-- `data/` : Raw and processed datasets (**ignored if too large**)  
+    - `utils/` : Helper functions (feature evaluation...)
+- `artifacts/` : Saved trained models, scalers, and encoders (**ignores trained models if size too big in Github**)  
+- `Data/` : Raw datasets
 
 ---
 
